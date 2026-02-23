@@ -11,14 +11,20 @@ TOPIC_ID_1 = int(os.getenv("TOPIC_ID_1", 0))
 TOPIC_ID_2 = int(os.getenv("TOPIC_ID_2", 0))
 
 async def cleanup(context):
-    chat_id = -1003856173368  # آیدی گروهت
+    chat_id = -1001234567890  # آیدی گروه
+    image_thread = 238
+    general_thread = 1
 
-    # آخرین 500 پیام رو پاک میکند
-    for msg_id in range(context.job.data["last_id"] - 500, context.job.data["last_id"]):
-        try:
-            await context.bot.delete_message(chat_id, msg_id)
-        except:
-            pass
+    # گرفتن آخرین پیام‌ها
+    updates = await context.bot.get_chat_history(chat_id, limit=500, message_thread_id=image_thread)
+    
+    for message in updates:
+        # اگر پیام **عکس نیست** پاک کن
+        if not message.photo:
+            try:
+                await context.bot.delete_message(chat_id, message.message_id)
+            except:
+                pass
 async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بررسی وجود پیام و مطابقت با تاپیک‌های مورد نظر
     if not update.message or update.message.message_thread_id not in [TOPIC_ID_1, TOPIC_ID_2]:
