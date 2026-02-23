@@ -4,6 +4,33 @@ from telegram import Update
 from telegram.constants import ChatMemberStatus
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 from datetime import timedelta
+from telegram.ext import CommandHandler, ContextTypes
+from telegram import Update
+
+# دستور دستی پاکسازی تاپیک image
+async def cleanup_image_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    image_thread = IMAGE_THREAD_ID
+
+    await update.message.reply_text("شروع پاکسازی پیام‌های غیرعکسی در تاپیک image...")
+
+    try:
+        updates = await context.bot.get_chat_history(chat_id, limit=500, message_thread_id=image_thread)
+        count = 0
+        for message in updates:
+            if not message.photo:  # فقط پیام‌هایی که عکس نیستند پاک میشن
+                try:
+                    await context.bot.delete_message(chat_id, message.message_id)
+                    count += 1
+                except:
+                    pass
+        await update.message.reply_text(f"پاکسازی تمام شد ✅ تعداد پیام‌های پاک شده: {count}")
+    except Exception as e:
+        await update.message.reply_text(f"خطا در پاکسازی: {e}")
+
+
+
+
 
 # ۱. دریافت تنظیمات از متغیرهای محیطی Railway
 TOKEN = os.getenv("BOT_TOKEN")
@@ -66,6 +93,7 @@ if __name__ == '__main__':
         print("❌ خطا: BOT_TOKEN تنظیم نشده است.")
     else:
         application = ApplicationBuilder().token(TOKEN).build()
+       app.add_handler(CommandHandler("cleanup_image", cleanup_image_command))
         app.job_queue.run_repeating(
     cleanup,
     interval=timedelta(days=10),
