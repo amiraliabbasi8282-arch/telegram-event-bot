@@ -18,40 +18,42 @@ async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT
         # دریافت اطلاعات فرستنده
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
+        thread_id = update.message.message_thread_id
+        
+        # بررسی سطح دسترسی کاربر (ادمین‌ها نادیده گرفته می‌شوند)
         member = await context.bot.get_chat_member(chat_id, user_id)
-
-        # اگر فرستنده ادمین یا صاحب گروه بود، پیام پاک نشود
         if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             return
 
-        # برای کاربران معمولی:
         # الف) حذف پیام کاربر
         await update.message.delete()
         
-        # ب) ارسال پیام هشدار به صورت بی‌صدا (بدون نوتیکیشن مزاحم)
-        warning_text = "⛔️ این تاپیک مخصوص اطلاع رسانی می‌باشد ⛔️"
-        sent_msg = await update.message.reply_text(
-            warning_text, 
-            disable_notification=True  # پیام بدون صدا ارسال می‌شود
+        # ب) ارسال پیام هشدار (مستقیم به تاپیک، بدون ریپلای و بی‌صدا)
+        # این متد بسیار پایدارتر از reply_text است
+        sent_msg = await context.bot.send_message(
+            chat_id=chat_id,
+            message_thread_id=thread_id,
+            text="⛔️ این تاپیک مخصوص اطلاع رسانی می‌باشد ⛔️",
+            disable_notification=True
         )
         
         # ج) ۲۰ ثانیه انتظار
         await asyncio.sleep(20)
         
-        # د) حذف پیام ربات
-        await sent_msg.delete()
+        # د) حذف پیام هشدار ربات
+        await context.bot.delete_message(chat_id=chat_id, message_id=sent_msg.message_id)
             
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error logic: {e}")
 
 if __name__ == '__main__':
     if not TOKEN or TOKEN == "YOUR_TOKEN":
-        print("❌ خطا: BOT_TOKEN تنظیم نشده است.")
+        print("❌ خطا: BOT_TOKEN در Railway تنظیم نشده است.")
     else:
         application = ApplicationBuilder().token(TOKEN).build()
         
-        # هندلر برای شناسایی تمام پیام‌ها در تاپیک‌ها
+        # هندلر برای شناسایی تمام پیام‌ها (متن، مدیا و غیره)
         application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topic_handler))
         
-        print("✅ ربات فعال شد. (حذف بعد از ۲۰ ثانیه + ارسال بی‌صدا)")
+        print("✅ ربات با متد ارسال مستقیم فعال شد. (۲۰ ثانیه انتظار | بی‌صدا)")
         application.run_polling()
