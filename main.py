@@ -10,17 +10,17 @@ TOPIC_ID_1 = int(os.getenv("TOPIC_ID_1", 0))
 TOPIC_ID_2 = int(os.getenv("TOPIC_ID_2", 0))
 
 async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # بررسی وجود پیام و اینکه آیا در تاپیک‌های مورد نظر ارسال شده است یا خیر
+    # بررسی وجود پیام و مطابقت با تاپیک‌های مورد نظر
     if not update.message or update.message.message_thread_id not in [TOPIC_ID_1, TOPIC_ID_2]:
         return
 
     try:
-        # دریافت اطلاعات فرستنده برای چک کردن سطح دسترسی
+        # دریافت اطلاعات فرستنده
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         member = await context.bot.get_chat_member(chat_id, user_id)
 
-        # اگر فرستنده ادمین یا صاحب گروه بود، ربات هیچ واکنشی نشان نمی‌دهد
+        # اگر فرستنده ادمین یا صاحب گروه بود، پیام پاک نشود
         if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             return
 
@@ -28,27 +28,30 @@ async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT
         # الف) حذف پیام کاربر
         await update.message.delete()
         
-        # ب) ارسال پیام هشدار
+        # ب) ارسال پیام هشدار به صورت بی‌صدا (بدون نوتیکیشن مزاحم)
         warning_text = "⛔️ این تاپیک مخصوص اطلاع رسانی می‌باشد ⛔️"
-        sent_msg = await update.message.reply_text(warning_text)
+        sent_msg = await update.message.reply_text(
+            warning_text, 
+            disable_notification=True  # پیام بدون صدا ارسال می‌شود
+        )
         
-        # ج) ۲۰ ثانیه انتظار (طبق درخواست شما)
+        # ج) ۲۰ ثانیه انتظار
         await asyncio.sleep(20)
         
-        # د) حذف پیام هشدار ربات
+        # د) حذف پیام ربات
         await sent_msg.delete()
             
     except Exception as e:
-        # چاپ خطا در لاگ‌های Railway برای عیب‌یابی
-        print(f"Error in execution: {e}")
+        print(f"Error: {e}")
 
 if __name__ == '__main__':
-    # بررسی نهایی توکن قبل از اجرا
     if not TOKEN or TOKEN == "YOUR_TOKEN":
-        print("❌ خطا: BOT_TOKEN در تنظیمات Railway تعریف نشده است.")
+        print("❌ خطا: BOT_TOKEN تنظیم نشده است.")
     else:
-        # راه‌اندازی ربات
         application = ApplicationBuilder().token(TOKEN).build()
         
-        # فعال کردن هندلر برای انواع پیام‌ها (متن، عکس، فایل و غیره)
-        # این فیلتر باعث می‌شود تمام پیام‌های غیر از دستورات
+        # هندلر برای شناسایی تمام پیام‌ها در تاپیک‌ها
+        application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topic_handler))
+        
+        print("✅ ربات فعال شد. (حذف بعد از ۲۰ ثانیه + ارسال بی‌صدا)")
+        application.run_polling()
