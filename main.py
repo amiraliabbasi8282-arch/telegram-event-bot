@@ -36,25 +36,23 @@ async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT
             disable_notification=True
         )
         
-        # ج) ۵ ثانیه انتظار (طبق درخواست جدید شما)
-        await asyncio.sleep(5)
+        # ج) ۲.۵ ثانیه انتظار (تغییر طبق درخواست شما)
+        await asyncio.sleep(2.5)
         
-        # د) حذف پیام هشدار ربات بعد از ۵ ثانیه
+        # د) حذف پیام هشدار ربات بعد از ۲.۵ ثانیه
         await context.bot.delete_message(chat_id=chat_id, message_id=sent_msg.message_id)
             
     except Exception as e:
         print(f"Error logic: {e}")
 
 if __name__ == '__main__':
-    # بررسی وجود توکن
     if not TOKEN or TOKEN == "YOUR_TOKEN":
-        print("❌ خطا: BOT_TOKEN در Railway تنظیم نشده است.")
+        print("❌ خطا: BOT_TOKEN تنظیم نشده است.")
     else:
-        # ساخت اپلیکیشن ربات
         application = ApplicationBuilder().token(TOKEN).build()
         
-        # هندلر برای شناسایی تمامی پیام‌ها (متن، عکس، ویدیو و غیره)
+        # هندلر برای تمامی پیام‌ها (متن، عکس و...)
         application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topic_handler))
         
-        print("✅ ربات فعال شد. (حذف هشدار بعد از ۵ ثانیه | ارسال بی‌صدا)")
+        print("✅ ربات فعال شد. (حذف هشدار بعد از ۲.۵ ثانیه | ارسال بی‌صدا)")
         application.run_polling()
