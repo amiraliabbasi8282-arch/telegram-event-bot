@@ -36,10 +36,10 @@ async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT
             disable_notification=True
         )
         
-        # ج) ۲.۵ ثانیه انتظار (تغییر طبق درخواست شما)
-        await asyncio.sleep(2.5)
+        # ج) ۱ ثانیه انتظار (تغییر طبق درخواست شما)
+        await asyncio.sleep(1)
         
-        # د) حذف پیام هشدار ربات بعد از ۲.۵ ثانیه
+        # د) حذف پیام هشدار ربات بعد از ۱ ثانیه
         await context.bot.delete_message(chat_id=chat_id, message_id=sent_msg.message_id)
             
     except Exception as e:
@@ -51,8 +51,8 @@ if __name__ == '__main__':
     else:
         application = ApplicationBuilder().token(TOKEN).build()
         
-        # هندلر برای تمامی پیام‌ها (متن، عکس و...)
+        # هندلر برای تمامی پیام‌ها
         application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topic_handler))
         
-        print("✅ ربات فعال شد. (حذف هشدار بعد از ۲.۵ ثانیه | ارسال بی‌صدا)")
+        print("✅ ربات فعال شد. (حذف هشدار بعد از ۱ ثانیه | ارسال بی‌صدا)")
         application.run_polling()
