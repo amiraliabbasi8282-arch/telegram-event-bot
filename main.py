@@ -3,12 +3,22 @@ import asyncio
 from telegram import Update
 from telegram.constants import ChatMemberStatus
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from datetime import timedelta
 
 # ۱. دریافت تنظیمات از متغیرهای محیطی Railway
 TOKEN = os.getenv("BOT_TOKEN")
 TOPIC_ID_1 = int(os.getenv("TOPIC_ID_1", 0))
 TOPIC_ID_2 = int(os.getenv("TOPIC_ID_2", 0))
 
+async def cleanup(context):
+    chat_id = -1003856173368  # آیدی گروهت
+
+    # آخرین 500 پیام رو پاک میکند
+    for msg_id in range(context.job.data["last_id"] - 500, context.job.data["last_id"]):
+        try:
+            await context.bot.delete_message(chat_id, msg_id)
+        except:
+            pass
 async def restricted_topic_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بررسی وجود پیام و مطابقت با تاپیک‌های مورد نظر
     if not update.message or update.message.message_thread_id not in [TOPIC_ID_1, TOPIC_ID_2]:
@@ -50,7 +60,11 @@ if __name__ == '__main__':
         print("❌ خطا: BOT_TOKEN تنظیم نشده است.")
     else:
         application = ApplicationBuilder().token(TOKEN).build()
-        
+        app.job_queue.run_repeating(
+    cleanup,
+    interval=timedelta(days=10),
+    first=10
+    )
         # هندلر برای تمامی پیام‌ها
         application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topic_handler))
         
