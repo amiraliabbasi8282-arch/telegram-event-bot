@@ -6,20 +6,25 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 
 # ---------------- Variables from Railway ----------------
 TOKEN = os.getenv("BOT_TOKEN")
-RUNNING_THREAD_ID = int(os.getenv("RUNNING_THREAD_ID", 0))  # آیدی واقعی تاپیک Running
-TALK_THREAD_ID = int(os.getenv("TALK_THREAD_ID", 0))        # آیدی واقعی تاپیک Talk
+
+# نام تاپیک‌ها یا کلمات کلیدی که پیام‌ها باید در آن‌ها محدود شوند
+TOPICS = os.getenv("TOPICS", "running,e").lower().split(",")  # مثال: "running,e"
 
 # ---------------- Handler ----------------
 async def restricted_topics_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
 
-    thread_id = update.message.message_thread_id
-    if thread_id not in [RUNNING_THREAD_ID, TALK_THREAD_ID]:
-        return
-
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+
+    # متن پیام یا عنوان گروه/چت
+    text = (update.message.text or "").lower()
+    chat_title = (update.message.chat.title or "").lower()
+
+    # بررسی اینکه پیام متعلق به تاپیک محدود است
+    if not any(topic.strip() in chat_title or topic.strip() in text for topic in TOPICS):
+        return
 
     try:
         # ادمین‌ها و مالک گروه استثنا هستند
@@ -33,17 +38,17 @@ async def restricted_topics_handler(update: Update, context: ContextTypes.DEFAUL
         # هشدار ۱ ثانیه‌ای
         warning = await context.bot.send_message(
             chat_id=chat_id,
-            message_thread_id=thread_id,
             text="⛔️ این تاپیک فقط مخصوص اطلاع‌رسانی است ⛔️",
             disable_notification=True
         )
         await asyncio.sleep(1)
         await context.bot.delete_message(chat_id, warning.message_id)
 
-        print(f"Deleted message from user {user_id} in thread {thread_id}")
+        print(f"Deleted message from user {user_id} in chat {chat_title}")
 
     except Exception as e:
         print(f"Error handling message: {e}")
+
 
 # ---------------- Main ----------------
 if __name__ == "__main__":
