@@ -1,96 +1,50 @@
 import os
 import asyncio
-from datetime import timedelta
 from telegram import Update
 from telegram.constants import ChatMemberStatus
-from telegram.ext import (
-    ApplicationBuilder,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 # ---------------- Variables from Railway ----------------
 TOKEN = os.getenv("BOT_TOKEN")
-IMAGE_THREAD_ID = int(os.getenv("IMAGE_THREAD_ID", 0))
-GENERAL_THREAD_ID = int(os.getenv("GENERAL_THREAD_ID", 0))
 RUNNING_THREAD_ID = int(os.getenv("RUNNING_THREAD_ID", 0))
 TALK_THREAD_ID = int(os.getenv("TALK_THREAD_ID", 0))
 
-# ---------------- Store Messages for Cleanup ----------------
-general_messages = []       # store all messages for GENERAL
-image_messages = []         # store messages for IMAGE (to delete non-photo)
-
-# ---------------- Unified Handler ----------------
-async def unified_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ---------------- Handler for Running & Talk ----------------
+async def restricted_topics_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
+        return
+
+    thread_id = update.message.message_thread_id
+    if thread_id not in [RUNNING_THREAD_ID, TALK_THREAD_ID]:
         return
 
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    thread_id = update.message.message_thread_id  # can be None
 
-    # ---------------- IMAGE ----------------
-    if thread_id == IMAGE_THREAD_ID:
-        # store all messages for 10-day cleanup
-        image_messages.append((chat_id, update.message.message_id, bool(update.message.photo)))
-        print(f"Stored IMAGE message {update.message.message_id}, is_photo={bool(update.message.photo)}")
-        return
+    try:
+        # ادمین‌ها و مالک گروه استثنا هستند
+        member = await context.bot.get_chat_member(chat_id, user_id)
+        if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+            return
 
-    # ---------------- GENERAL ----------------
-    elif thread_id == GENERAL_THREAD_ID:
-        general_messages.append((chat_id, update.message.message_id))
-        print(f"Stored GENERAL message {update.message.message_id}")
-        return
+        # حذف پیام کاربر
+        await update.message.delete()
 
-    # ---------------- RUNNING & TALK ----------------
-    elif thread_id in [RUNNING_THREAD_ID, TALK_THREAD_ID]:
-        try:
-            member = await context.bot.get_chat_member(chat_id, user_id)
-            if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-                return  # admins free
-            await update.message.delete()
-            warning = await context.bot.send_message(
-                chat_id=chat_id,
-                message_thread_id=thread_id,
-                text="⛔️ این تاپیک فقط مخصوص اطلاع‌رسانی است ⛔️",
-                disable_notification=True
-            )
-            await asyncio.sleep(1)
-            await context.bot.delete_message(chat_id, warning.message_id)
-            print(f"Deleted message in {thread_id} from user {user_id} and sent warning")
-        except Exception as e:
-            print(f"Error in RUNNING/TALK handler: {e}")
-        return
+        # ارسال هشدار ربات برای ۱ ثانیه
+        warning = await context.bot.send_message(
+            chat_id=chat_id,
+            message_thread_id=thread_id,
+            text="⛔️ این تاپیک فقط مخصوص اطلاع‌رسانی است ⛔️",
+            disable_notification=True
+        )
+        await asyncio.sleep(1)
+        await context.bot.delete_message(chat_id, warning.message_id)
 
-    # ---------------- Fallback ----------------
-    else:
-        print(f"Message in chat {chat_id} with thread_id {thread_id} ignored")
+        print(f"Deleted message from user {user_id} in thread {thread_id}")
 
-# ---------------- Cleanup GENERAL Every 10 Days ----------------
-async def cleanup_general(context: ContextTypes.DEFAULT_TYPE):
-    global general_messages
-    print("Starting 10-day cleanup for GENERAL...")
-    for chat_id, message_id in general_messages:
-        try:
-            await context.bot.delete_message(chat_id, message_id)
-        except Exception as e:
-            print(f"Error deleting GENERAL message {message_id}: {e}")
-    general_messages = []
-    print("✅ GENERAL cleanup done")
+    except Exception as e:
+        print(f"Error handling message: {e}")
 
-# ---------------- Cleanup IMAGE Every 10 Days ----------------
-async def cleanup_image(context: ContextTypes.DEFAULT_TYPE):
-    global image_messages
-    print("Starting 10-day cleanup for IMAGE...")
-    for chat_id, message_id, is_photo in image_messages:
-        try:
-            if not is_photo:
-                await context.bot.delete_message(chat_id, message_id)
-        except Exception as e:
-            print(f"Error deleting IMAGE message {message_id}: {e}")
-    image_messages = []
-    print("✅ IMAGE cleanup done (photos kept)")
 
 # ---------------- Main ----------------
 if __name__ == "__main__":
@@ -99,20 +53,8 @@ if __name__ == "__main__":
     else:
         application = ApplicationBuilder().token(TOKEN).build()
 
-        # unified handler for all messages
-        application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), unified_handler))
-
-        # schedule 10-day cleanup
-        application.job_queue.run_repeating(
-            cleanup_general,
-            interval=timedelta(days=10),
-            first=10
-        )
-        application.job_queue.run_repeating(
-            cleanup_image,
-            interval=timedelta(days=10),
-            first=10
-        )
+        # هندلر برای تمام پیام‌ها در تاپیک‌های محدود
+        application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topics_handler))
 
         print("✅ ربات فعال شد")
         application.run_polling()
