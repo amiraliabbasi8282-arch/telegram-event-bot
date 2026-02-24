@@ -36,4 +36,43 @@ async def restricted_topics_handler(update: Update, context: ContextTypes.DEFAUL
         return
 
     chat_id = update.effective_chat.id
-    user_id = update.effective_user
+    user_id = update.effective_user.id
+
+    try:
+        member = await context.bot.get_chat_member(chat_id, user_id)
+
+        # ادمین‌ها و مالک گروه مستثنا هستند
+        if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+            return
+
+        # حذف پیام کاربر
+        await update.message.delete()
+
+        # ارسال هشدار
+        warning = await context.bot.send_message(
+            chat_id=chat_id,
+            message_thread_id=thread_id,
+            text="⛔️ این تاپیک فقط مخصوص اطلاع‌رسانی است ⛔️",
+            disable_notification=True
+        )
+
+        # ۱ ثانیه صبر
+        await asyncio.sleep(1)
+
+        # حذف هشدار
+        await context.bot.delete_message(chat_id, warning.message_id)
+
+    except Exception as e:
+        print(e)
+
+if __name__ == '__main__':
+    if not TOKEN:
+        print("❌ BOT_TOKEN تنظیم نشده")
+    else:
+        application = ApplicationBuilder().token(TOKEN).build()
+
+        application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), image_only_handler))
+        application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topics_handler))
+
+        print("✅ ربات فعال شد")
+        application.run_polling()
