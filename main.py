@@ -6,44 +6,43 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 
 # ---------------- Variables from Railway ----------------
 TOKEN = os.getenv("BOT_TOKEN")
-RUNNING_THREAD_ID = int(os.getenv("RUNNING_THREAD_ID", 0))
-TALK_THREAD_ID = int(os.getenv("TALK_THREAD_ID", 0))
+TOPIC_RUNNING = os.getenv("TOPIC_RUNNING", "").lower()  # اسم تاپیک Running
+TOPIC_TALK = os.getenv("TOPIC_TALK", "").lower()        # اسم تاپیک Talk
 
-# ---------------- Handler for Running & Talk ----------------
+# ---------------- Handler ----------------
 async def restricted_topics_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
 
-    thread_id = update.message.message_thread_id
-    if thread_id not in [RUNNING_THREAD_ID, TALK_THREAD_ID]:
-        return
-
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+    message_text = update.message.text or ""
+    topic_title = (update.message.chat.title or "").lower()  # اسم گروه/تاپیک
 
-    try:
-        # ادمین‌ها و مالک گروه استثنا هستند
-        member = await context.bot.get_chat_member(chat_id, user_id)
-        if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            return
+    # بررسی اینکه پیام در تاپیک Running یا Talk است
+    if TOPIC_RUNNING in topic_title or TOPIC_TALK in topic_title:
+        try:
+            # ادمین‌ها و مالک گروه استثنا هستند
+            member = await context.bot.get_chat_member(chat_id, user_id)
+            if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+                return
 
-        # حذف پیام کاربر
-        await update.message.delete()
+            # حذف پیام کاربر
+            await update.message.delete()
 
-        # ارسال هشدار ربات برای ۱ ثانیه
-        warning = await context.bot.send_message(
-            chat_id=chat_id,
-            message_thread_id=thread_id,
-            text="⛔️ این تاپیک فقط مخصوص اطلاع‌رسانی است ⛔️",
-            disable_notification=True
-        )
-        await asyncio.sleep(1)
-        await context.bot.delete_message(chat_id, warning.message_id)
+            # ارسال هشدار ۱ ثانیه‌ای
+            warning = await context.bot.send_message(
+                chat_id=chat_id,
+                text="⛔️ این تاپیک فقط مخصوص اطلاع‌رسانی است ⛔️",
+                disable_notification=True
+            )
+            await asyncio.sleep(1)
+            await context.bot.delete_message(chat_id, warning.message_id)
 
-        print(f"Deleted message from user {user_id} in thread {thread_id}")
+            print(f"Deleted message from user {user_id} in topic {topic_title}")
 
-    except Exception as e:
-        print(f"Error handling message: {e}")
+        except Exception as e:
+            print(f"Error handling message: {e}")
 
 
 # ---------------- Main ----------------
@@ -53,7 +52,7 @@ if __name__ == "__main__":
     else:
         application = ApplicationBuilder().token(TOKEN).build()
 
-        # هندلر برای تمام پیام‌ها در تاپیک‌های محدود
+        # هندلر برای تمام پیام‌ها
         application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), restricted_topics_handler))
 
         print("✅ ربات فعال شد")
