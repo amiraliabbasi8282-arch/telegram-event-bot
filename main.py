@@ -51,7 +51,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # ۶. حذف خودکار پیام هشدار بعد از ۲ ثانیه برای تمیز ماندن تاپیک
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         await warn_msg.delete()
 
     except Exception as e:
