@@ -8,7 +8,6 @@ from telegram.ext import (
     MessageHandler,
     filters,
     ContextTypes,
-    JobQueue,
 )
 
 # ---------------- Variables from Railway ----------------
@@ -18,8 +17,9 @@ GENERAL_THREAD_ID = int(os.getenv("GENERAL_THREAD_ID", 0))
 RUNNING_THREAD_ID = int(os.getenv("RUNNING_THREAD_ID", 0))
 TALK_THREAD_ID = int(os.getenv("TALK_THREAD_ID", 0))
 
-# ---------------- Store General Messages ----------------
-general_messages = []  # store (chat_id, message_id) for deletion
+# ---------------- Store Messages for Cleanup ----------------
+general_messages = []       # store all messages for GENERAL
+image_messages = []         # store messages for IMAGE (to delete non-photo)
 
 # ---------------- Unified Handler ----------------
 async def unified_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -32,12 +32,15 @@ async def unified_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ---------------- IMAGE ----------------
     if thread_id == IMAGE_THREAD_ID:
-        if not update.message.photo:
-            try:
-                await update.message.delete()
-                print(f"Deleted non-photo message in IMAGE: {update.message.message_id}")
-            except Exception as e:
-                print(f"Error deleting IMAGE message: {e}")
+        # store all messages for 10-day cleanup
+        image_messages.append((chat_id, update.message.message_id, bool(update.message.photo)))
+        print(f"Stored IMAGE message {update.message.message_id}, is_photo={bool(update.message.photo)}")
+        return
+
+    # ---------------- GENERAL ----------------
+    elif thread_id == GENERAL_THREAD_ID:
+        general_messages.append((chat_id, update.message.message_id))
+        print(f"Stored GENERAL message {update.message.message_id}")
         return
 
     # ---------------- RUNNING & TALK ----------------
@@ -60,19 +63,11 @@ async def unified_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"Error in RUNNING/TALK handler: {e}")
         return
 
-    # ---------------- GENERAL ----------------
-    elif thread_id == GENERAL_THREAD_ID:
-        # store message for 10-day cleanup
-        general_messages.append((chat_id, update.message.message_id))
-        print(f"Stored GENERAL message {update.message.message_id}")
-        return
-
-    # ---------------- Fallback for messages without thread_id ----------------
+    # ---------------- Fallback ----------------
     else:
         print(f"Message in chat {chat_id} with thread_id {thread_id} ignored")
 
-
-# ---------------- Cleanup General Every 10 Days ----------------
+# ---------------- Cleanup GENERAL Every 10 Days ----------------
 async def cleanup_general(context: ContextTypes.DEFAULT_TYPE):
     global general_messages
     print("Starting 10-day cleanup for GENERAL...")
@@ -84,6 +79,18 @@ async def cleanup_general(context: ContextTypes.DEFAULT_TYPE):
     general_messages = []
     print("✅ GENERAL cleanup done")
 
+# ---------------- Cleanup IMAGE Every 10 Days ----------------
+async def cleanup_image(context: ContextTypes.DEFAULT_TYPE):
+    global image_messages
+    print("Starting 10-day cleanup for IMAGE...")
+    for chat_id, message_id, is_photo in image_messages:
+        try:
+            if not is_photo:
+                await context.bot.delete_message(chat_id, message_id)
+        except Exception as e:
+            print(f"Error deleting IMAGE message {message_id}: {e}")
+    image_messages = []
+    print("✅ IMAGE cleanup done (photos kept)")
 
 # ---------------- Main ----------------
 if __name__ == "__main__":
@@ -98,6 +105,11 @@ if __name__ == "__main__":
         # schedule 10-day cleanup
         application.job_queue.run_repeating(
             cleanup_general,
+            interval=timedelta(days=10),
+            first=10
+        )
+        application.job_queue.run_repeating(
+            cleanup_image,
             interval=timedelta(days=10),
             first=10
         )
