@@ -5,75 +5,81 @@ import sys
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-# تنظیمات لاگ برای مشاهده وضعیت در پنل Railway
+# تنظیمات لاگ برای Railway
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(levelname)s - %(message)s',
     level=logging.INFO,
     stream=sys.stdout
 )
 
-# دریافت مقادیر از بخش Variables در Railway
+# دریافت متغیرها از Railway
 TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", 0))
 TALK_THREAD_ID = int(os.getenv("TALK_THREAD_ID", 0))
 RUNNING_THREAD_ID = int(os.getenv("RUNNING_THREAD_ID", 0))
+
+# تاپیک‌های مجاز برای کنترل
+ALLOWED_THREADS = [TALK_THREAD_ID, RUNNING_THREAD_ID]
 
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if not message:
         return
 
-    # ثبت لاگ برای عیب‌یابی (نمایش آیدی گروه و تاپیک در کنسول)
-    logging.info(f"Message received | Chat: {message.chat.id} | Topic: {message.message_thread_id}")
+    logging.info(
+        f"Message received | Chat: {message.chat.id} | "
+        f"Thread: {message.message_thread_id} | "
+        f"User: {message.from_user.id}"
+    )
 
-    # ۱. چک کردن اینکه پیام حتماً در گروه مورد نظر باشد
+    # فقط داخل گروه مشخص شده کار کن
     if message.chat.id != GROUP_ID:
         return
 
-    # ۲. چک کردن اینکه پیام در یکی از دو تاپیک مشخص شده باشد
-    if message.message_thread_id not in [TALK_THREAD_ID, RUNNING_THREAD_ID]:
+    # اگر تاپیک نداشت یا جزو لیست نبود کاری نکن
+    if message.message_thread_id not in ALLOWED_THREADS:
         return
 
     try:
-        # ۳. بررسی وضعیت ادمین بودن فرستنده (پیام ادمین‌ها پاک نمی‌شود)
+        # چک کردن ادمین بودن
         member = await context.bot.get_chat_member(GROUP_ID, message.from_user.id)
         if member.status in ["administrator", "creator"]:
-            return 
+            return
 
-        # ۴. عملیات حذف پیام کاربر معمولی (پیام‌های متنی یا انواع مختلف)
+        # 🔥 مهم: قبل از حذف، thread_id ذخیره شود
+        thread_id = message.message_thread_id
+
+        # حذف پیام کاربر
         await message.delete()
 
-        # ۵. ارسال پیام هشدار (با رعایت فاصله و علامت مورد نظر شما)
+        # ارسال هشدار
         warn_msg = await context.bot.send_message(
             chat_id=GROUP_ID,
             text="⛔ این تاپیک فقط برای اطلاع‌رسانی می‌باشد ⛔️",
-            message_thread_id=message.message_thread_id
+            message_thread_id=thread_id
         )
 
-        # ۶. حذف خودکار پیام هشدار بعد از ۲ ثانیه برای تمیز ماندن تاپیک
+        # حذف هشدار بعد از ۱ ثانیه
         await asyncio.sleep(1)
         await warn_msg.delete()
 
     except Exception as e:
-        logging.error(f"Error in execution: {e}")
+        logging.error(f"Error: {e}")
+
 
 if __name__ == '__main__':
     if not TOKEN:
-        logging.error("BOT_TOKEN is missing in Variables!")
+        logging.error("BOT_TOKEN is missing!")
     else:
-        # راه‌اندازی اپلیکیشن ربات
         app = ApplicationBuilder().token(TOKEN).build()
-        
-        # تعریف هندلر برای انواع مختلف پیام‌ها (متنی، عکس، ویدیو، صوت، و غیره)
-        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))          # پیام‌های متنی
-        app.add_handler(MessageHandler(filters.PHOTO, handle_messages))                               # عکس‌ها
-        app.add_handler(MessageHandler(filters.VIDEO, handle_messages))                               # ویدیوها
-        app.add_handler(MessageHandler(filters.VOICE, handle_messages))                               # پیام‌های صوتی
-        app.add_handler(MessageHandler(filters.Document, handle_messages))                            # فایل‌ها
-        app.add_handler(MessageHandler(filters.AUDIO, handle_messages))                               # پیام‌های صوتی دیگر
-        app.add_handler(MessageHandler(filters.VIDEO_NOTE, handle_messages))                          # ویدیو مسیج‌ها
 
-        logging.info("--- Bot is starting... ---")
-        
-        # اجرای دائمی ربات و نادیده گرفتن پیام‌های زمان خاموشی
+        # 🔥 این خط همه نوع پیام رو می‌گیره
+        app.add_handler(
+            MessageHandler(
+                filters.ALL & (~filters.StatusUpdate.ALL),
+                handle_messages
+            )
+        )
+
+        logging.info("Bot is running...")
         app.run_polling(drop_pending_updates=True)
