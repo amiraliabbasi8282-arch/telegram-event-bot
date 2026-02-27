@@ -39,8 +39,8 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         member = await context.bot.get_chat_member(GROUP_ID, message.from_user.id)
         if member.status in ["administrator", "creator"]:
             return 
-            
-        # ۴. عملیات حذف پیام کاربر معمولی
+
+        # ۴. عملیات حذف پیام کاربر معمولی (پیام‌های متنی یا انواع مختلف)
         await message.delete()
 
         # ۵. ارسال پیام هشدار (با رعایت فاصله و علامت مورد نظر شما)
@@ -64,8 +64,14 @@ if __name__ == '__main__':
         # راه‌اندازی اپلیکیشن ربات
         app = ApplicationBuilder().token(TOKEN).build()
         
-        # تعریف هندلر برای پیام‌های متنی (به جز دستورات)
-        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))
+        # تعریف هندلر برای انواع مختلف پیام‌ها (متنی، عکس، ویدیو، صوت، و غیره)
+        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_messages))          # پیام‌های متنی
+        app.add_handler(MessageHandler(filters.PHOTO, handle_messages))                               # عکس‌ها
+        app.add_handler(MessageHandler(filters.VIDEO, handle_messages))                               # ویدیوها
+        app.add_handler(MessageHandler(filters.VOICE, handle_messages))                               # پیام‌های صوتی
+        app.add_handler(MessageHandler(filters.DOCUMENT, handle_messages))                            # فایل‌ها
+        app.add_handler(MessageHandler(filters.AUDIO, handle_messages))                               # پیام‌های صوتی دیگر
+        app.add_handler(MessageHandler(filters.VIDEO_NOTE, handle_messages))                          # ویدیو مسیج‌ها
 
         logging.info("--- Bot is starting... ---")
         
