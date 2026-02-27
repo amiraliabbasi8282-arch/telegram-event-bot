@@ -69,7 +69,7 @@ if __name__ == '__main__':
         app.add_handler(MessageHandler(filters.PHOTO, handle_messages))                               # عکس‌ها
         app.add_handler(MessageHandler(filters.VIDEO, handle_messages))                               # ویدیوها
         app.add_handler(MessageHandler(filters.VOICE, handle_messages))                               # پیام‌های صوتی
-        app.add_handler(MessageHandler(filters.DOCUMENT, handle_messages))                            # فایل‌ها
+        app.add_handler(MessageHandler(filters.Document, handle_messages))                            # فایل‌ها
         app.add_handler(MessageHandler(filters.AUDIO, handle_messages))                               # پیام‌های صوتی دیگر
         app.add_handler(MessageHandler(filters.VIDEO_NOTE, handle_messages))                          # ویدیو مسیج‌ها
 
